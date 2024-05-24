@@ -25,7 +25,7 @@ public:
     void init(); //Overriden by subclasses
     void loadModel(std::string path);
 
-    void render(Shader shader);
+    void render(Shader shader, bool setmodel = true);
 
     void cleanup();
 

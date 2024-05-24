@@ -1,14 +1,16 @@
 #include "camera.h"
 #include <iostream>
 
-Camera::Camera(glm::vec3 position) :
+Camera::Camera(glm::vec3 position, NavigationType nt) :
         cameraPos(position),
         worldUp(glm::vec3(0.0f, 1.0f, 0.0f)),
-        yaw(-90.0f),
+        yaw(0.0f),
         pitch(0.0f),
         speed(2.5f),
         zoom(45.0f),
-        cameraFront(glm::vec3(0.0f, 0.0f, -1.0f)) {
+        cameraFront(glm::vec3(1.0f, 0.0f, 0.0f)),
+        navigationType(nt)
+{
     updateCameraVectors();
 }
 
@@ -27,13 +29,23 @@ void Camera::updateCameraDirection(double dx, double dy) {
 }
 void Camera::updateCameraPos(CameraDirection direction, float dt) {
     float velocity = (float)dt * speed;
+ 
+    glm::vec3 directionToMoveTo;
+    if (navigationType == ALL_AXES) { // we can move wherever cameraFront is pointing to, even up or down
+        directionToMoveTo = cameraFront;
+    }
+    else if(navigationType == X_AND_Z_ONLY) {
+        directionToMoveTo = glm::vec3(cameraFront.x, 0.0, cameraFront.z);
+        //normalize cause when the player cf.x & cf.y are both > 0, the directionToMoveTo vector becomes slightly more that unit
+        directionToMoveTo = glm::normalize(directionToMoveTo); 
+    }
 
     switch (direction) {
     case CameraDirection::FORWARD:
-        cameraPos += cameraFront * velocity;
+        cameraPos += directionToMoveTo * velocity;
         break;
     case CameraDirection::BACKWARD:
-        cameraPos -= cameraFront * velocity;
+        cameraPos -= directionToMoveTo * velocity;
         break;
     case CameraDirection::RIGHT:
         cameraPos += cameraRight * velocity;
@@ -72,6 +84,10 @@ float Camera::getZoom()
 
 glm::mat4x4 Camera::getViewMatrix() {
     return glm::lookAt(cameraPos, cameraPos + cameraFront, cameraUp);
+}
+
+void Camera::switchNaviationType() {
+    navigationType = (navigationType == ALL_AXES) ? X_AND_Z_ONLY : ALL_AXES;
 }
 
 glm::mat4x4 Camera::getViewMatrixNoPos() {

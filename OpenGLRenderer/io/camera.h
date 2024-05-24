@@ -14,6 +14,12 @@ enum class CameraDirection {
     DOWN
 };
 
+enum NavigationType {
+    ALL_AXES,
+    X_AND_Z_ONLY
+
+};
+
 class Camera {
 public:
     glm::vec3 cameraPos;
@@ -29,7 +35,7 @@ public:
     float speed;
     float zoom;
 
-    Camera(glm::vec3 position);
+    Camera(glm::vec3 position, NavigationType nt = ALL_AXES);
     void updateCameraDirection(double dx, double dy);
     void updateCameraPos(CameraDirection dir, float dt);
     void updateCameraPosXbox(glm::vec3 dir, float dy); //The implementation of this one's different from the other one
@@ -40,8 +46,14 @@ public:
     glm::mat4x4 getViewMatrixNoPos();
     glm::mat4x4 getViewMatrix();
 
+    void switchNaviationType();
+
+    static Camera defaultCamera;
+    
 private:
     void updateCameraVectors();
+
+    NavigationType navigationType;
 };
 
 #endif

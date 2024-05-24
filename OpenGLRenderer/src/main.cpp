@@ -13,8 +13,12 @@
 
 #include "graphics/shader.h"
 #include "graphics/texture.h"
+
 #include "graphics/models/cube.hpp"
 #include "graphics/models/lamp.hpp"
+#include "graphics/models/gun.hpp"
+#include "graphics/models/axesOverlay.hpp"
+
 #include "graphics/light.h"
 #include "graphics/model.h"
 
@@ -32,12 +36,8 @@ float zoomFactor = 1.0f;
 glm::mat4 transform = glm::mat4(1.0f);
 Joystick mainJ(0);
 
-Camera cameras[2]{
-    Camera(glm::vec3(0.0f, 0.0f, 2.0f)),
-    Camera(glm::vec3(10.0f, 10.0f, 10.0f))
-};
+Camera Camera::defaultCamera(glm::vec3(0.0f));
 
-int activeCamera = 0;
 float deltaTime;
 float lastFrame = 0.0f;
 
@@ -89,10 +89,17 @@ int main() {
     Shader shader = Shader("assets/object.vert", "assets/object.frag");
     Shader lampShader = Shader("assets/object.vert", "assets/lamp.frag");
 
-    Model container(glm::vec3(0.0f), glm::vec3(1.0), true);
+    Model container(glm::vec3(0.0, -1.0, 0.0f), glm::vec3(1.0), true);
     container.loadModel("assets\\models\\container\\source\\container.obj");
-    Model m(glm::vec3(0.0, 1.0, 0.0), glm::vec3(0.5), true);
-    m.loadModel("assets\\models\\ak-47\\source\\ak-47.obj"); // path of model
+
+    Gun gun;
+    gun.loadModel("assets\\models\\low-poly-ak-47.obj");
+
+    AxesOverlay ao;
+    ao.loadModel("assets\\models\\axis.obj");
+
+    Model sphere(glm::vec3(0.0, 6.0, 0.0), glm::vec3(1.0), true);
+    sphere.loadModel("assets\\models\\sphere.obj");
 
     DirLight dirLight = { glm::vec3(-0.2, -1.0, -0.3),
         glm::vec4(0.1, 0.1, 0.1, 1.0),
@@ -101,31 +108,30 @@ int main() {
     };
 
     glm::vec3 pointLightPositions[] = {
-            glm::vec3(0.7f,  0.2f,  2.0f),
-            glm::vec3(2.3f, -3.3f, -4.0f),
-            glm::vec3(-4.0f,  2.0f, -12.0f),
+            glm::vec3(2.3f, 5.3f, -4.0f),
+            glm::vec3(-4.0f,  2.0f, 12.0f),
     };
 
-    Lamp lamps[3];
-    for (int i = 0; i < 3; i++) {
+    Lamp lamps[2];
+    for (int i = 0; i < 2; i++) {
         lamps[i] = Lamp( 
             glm::vec3(50.0f, 50.0f, 130.0f),
-            glm::vec4(1.0, 1.0, 1.0, 1.0),
-            glm::vec4(1.0, 1.0, 1.0, 1.0),
-            glm::vec4(1.0, 1.0, 1.0, 1.0),
+            glm::vec4(2.0, 2.0, 2.0, 2.0),
+            glm::vec4(2.0, 2.0, 2.0, 2.0),
+            glm::vec4(2.0, 2.0, 2.0, 2.0),
             1.0, 0.07, 0.032,
             pointLightPositions[i],
             glm::vec3(1.0)
         );
-        lamps[i].material = Material::gold;
+        lamps[i].material = Material::turquoise;
         lamps[i].init();
     }
 
     SpotLight spotLight = {
-        cameras[activeCamera].cameraPos, cameras[activeCamera].cameraFront,
+        Camera::defaultCamera.cameraPos, Camera::defaultCamera.cameraFront,
         glm::cos(glm::radians(12.5)), glm::cos(glm::radians(20.0)),
         1.0f, 0.07f, 0.032f,
-        glm::vec4(0.0, 0.0, 0.0, 1.0f), glm::vec4(2.0, 2.0, 2.0, 1.0), glm::vec4(2.0, 2.0, 2.0, 1.0)
+        glm::vec4(2.0, 2.0, 2.0, 1.0f), glm::vec4(2.0, 2.0, 2.0, 1.0), glm::vec4(2.0, 2.0, 2.0, 1.0)
     };
 
     mainJ.update();
@@ -136,6 +142,7 @@ int main() {
         std::cout << "No controller present.\n";
     }
 
+    glViewport(0, 0, screen.SCR_WIDTH, screen.SCR_HEIGHT);
     glEnable(GL_DEPTH_TEST);
 
     while (!screen.shouldClose()) {
@@ -151,7 +158,7 @@ int main() {
         screen.update();
 
         shader.activate();
-        shader.set3Float("viewPos", cameras[activeCamera].cameraPos);
+        shader.set3Float("viewPos", Camera::defaultCamera.cameraPos);
         
         /*
         * rotating the directional light like the sun travelling through the sky
@@ -161,14 +168,14 @@ int main() {
         dirLight.render(shader);
         */
 
-        shader.setInt("noPointLights", 3);
-        for (int i = 0; i < 3; i++) {
+        shader.setInt("noPointLights", 2);
+        for (int i = 0; i < 2; i++) {
             lamps[i].pointLight.render(shader, i);
         }
     
         if (flashlightOn) {
-            spotLight.position = cameras[activeCamera].cameraPos;
-            spotLight.direction = cameras[activeCamera].cameraFront;
+            spotLight.position = Camera::defaultCamera.cameraPos;
+            spotLight.direction = Camera::defaultCamera.cameraFront;
             spotLight.render(shader, 0);
             shader.setInt("noSpotLights", 1);
         }
@@ -180,19 +187,20 @@ int main() {
         //Create transformation for screen
         glm::mat4 view = glm::mat4(1.0f); // from world to camera, specific to each camera
         glm::mat4 projection = glm::mat4(1.0); // general, actually specific to each viewport
-        view = cameras[activeCamera].getViewMatrix();
-        projection = glm::perspective(glm::radians(cameras[activeCamera].getZoom()), (float)screen.SCR_WIDTH / (float)screen.SCR_HEIGHT, 0.1f, 100.0f);
+        view = Camera::defaultCamera.getViewMatrix();
+        projection = glm::perspective(glm::radians(Camera::defaultCamera.getZoom()), (float)screen.SCR_WIDTH / (float)screen.SCR_HEIGHT, 0.1f, 100.0f);
 
         shader.setMat4("view", view);
         shader.setMat4("projection", projection);
 
-        for (int i = 0; i < 3; i++) {
+        for (int i = 0; i < 2; i++) {
             lamps[i].render(shader);
         }
 
         container.render(shader);
-        m.render(shader);
-        
+        gun.render(shader);
+        ao.render(shader);
+
         lampShader.activate();
         lampShader.setMat4("view", view);
         lampShader.setMat4("projection", projection);
@@ -208,9 +216,10 @@ int main() {
     }
 
     container.cleanup();
-    m.cleanup();
-    
-    for (int i = 0; i < 3; i++) {
+    gun.cleanup();
+    ao.cleanup();
+
+    for (int i = 0; i < 2; i++) {
         lamps[i].cleanup();
     }
 
@@ -231,42 +240,29 @@ void processInput(double dt) {
         screen.toogleFullScreenWindowed();
     }
 
-    if (Keyboard::key(GLFW_KEY_W)) {
-        mixVal += 0.005;
-        if (mixVal > 1.0f) {
-            mixVal = 1.0f;
-        }
-    }
-
-    if (Keyboard::key(GLFW_KEY_S)) {
-        mixVal -= 0.005;
-        if (mixVal < 0.0f) {
-            mixVal = 0.0f;
-        }
-    }
-
-    if (Keyboard::keyWentDown(GLFW_KEY_TAB)) {
-        activeCamera = !activeCamera;  
-    }
-
     // move camera
     if (Keyboard::key(GLFW_KEY_UP)) {
-        cameras[activeCamera].updateCameraPos(CameraDirection::FORWARD, dt);
+        Camera::defaultCamera.updateCameraPos(CameraDirection::FORWARD, dt);
     }
     if (Keyboard::key(GLFW_KEY_DOWN)) {
-        cameras[activeCamera].updateCameraPos(CameraDirection::BACKWARD, dt);
+        Camera::defaultCamera.updateCameraPos(CameraDirection::BACKWARD, dt);
     }
     if (Keyboard::key(GLFW_KEY_LEFT)) {
-        cameras[activeCamera].updateCameraPos(CameraDirection::LEFT, dt);
+        Camera::defaultCamera.updateCameraPos(CameraDirection::LEFT, dt);
     }
     if (Keyboard::key(GLFW_KEY_RIGHT)) {
-        cameras[activeCamera].updateCameraPos(CameraDirection::RIGHT, dt);
+        Camera::defaultCamera.updateCameraPos(CameraDirection::RIGHT, dt);
     }
     if (Keyboard::key(GLFW_KEY_SPACE)) {
-        cameras[activeCamera].updateCameraPos(CameraDirection::UP, dt);
+        Camera::defaultCamera.updateCameraPos(CameraDirection::UP, dt);
     }
     if (Keyboard::key(GLFW_KEY_LEFT_SHIFT)) {
-        cameras[activeCamera].updateCameraPos(CameraDirection::DOWN, dt);
+        Camera::defaultCamera.updateCameraPos(CameraDirection::DOWN, dt);
+    }
+
+    // select navigation type 
+    if (Keyboard::keyWentDown(GLFW_KEY_CAPS_LOCK)) {
+        Camera::defaultCamera.switchNaviationType();
     }
 
     // toogle spotlight on/off
@@ -276,40 +272,40 @@ void processInput(double dt) {
 
     //keyboard for direction
     if (Keyboard::key(GLFW_KEY_W)) {
-        cameras[activeCamera].updateCameraDirection(0.0, 0.25);
+        Camera::defaultCamera.updateCameraDirection(0.0, 0.25);
     }
     if (Keyboard::key(GLFW_KEY_S)) {
-        cameras[activeCamera].updateCameraDirection(0.0, -0.25);
+        Camera::defaultCamera.updateCameraDirection(0.0, -0.25);
     }
     if (Keyboard::key(GLFW_KEY_A)) {
-        cameras[activeCamera].updateCameraDirection(-0.25, 0.0);
+        Camera::defaultCamera.updateCameraDirection(-0.25, 0.0);
     }
     if (Keyboard::key(GLFW_KEY_D)) {
-        cameras[activeCamera].updateCameraDirection(0.25, 0.0);
+        Camera::defaultCamera.updateCameraDirection(0.25, 0.0);
     }
 
     //Mouse for direction
     double dx = Mouse::getDX(), dy = Mouse::getDY();
     if (dx != 0 || dy != 0) {
-        cameras[activeCamera].updateCameraDirection(dx * sensitivity, dy * sensitivity);
+        Camera::defaultCamera.updateCameraDirection(dx * sensitivity, dy * sensitivity);
     }
     double scrollDy = Mouse::getScrollDY();
     if (scrollDy != 0) {
-        cameras[activeCamera].updateCameraZoom(scrollDy);
+        Camera::defaultCamera.updateCameraZoom(scrollDy);
     }
 
     //Joystick for direction
     dx = mainJ.axesState(GLFW_JOYSTICK_AXES_RIGHT_STICK_X);
     dy = mainJ.axesState(GLFW_JOYSTICK_AXES_RIGHT_STICK_Y);
     if ((dx != 0) || (dy != 0)) {
-        cameras[activeCamera].updateCameraDirection(dx * sensitivity, -dy * sensitivity);
+        Camera::defaultCamera.updateCameraDirection(dx * sensitivity, -dy * sensitivity);
     }
 
     //Joystick for camera position
     dx = mainJ.axesState(GLFW_JOYSTICK_AXES_LEFT_STICK_X);
     dy = mainJ.axesState(GLFW_JOYSTICK_AXES_LEFT_STICK_Y);
     if (dx != 0 || dy != 0) {
-        cameras[activeCamera].updateCameraPosXbox(glm::vec3(dx, 0.0f, dy), dt);
+        Camera::defaultCamera.updateCameraPosXbox(glm::vec3(dx, 0.0f, dy), dt);
     }
 
 }

@@ -1,8 +1,8 @@
 #include "texture.h"
 #include <iostream>
 
-Texture::Texture()
-{
+Texture::Texture() {
+    generate();
 }
 
 Texture::Texture(std::string dir, std::string path, aiTextureType type) : dir(dir), path(path), type(type) {

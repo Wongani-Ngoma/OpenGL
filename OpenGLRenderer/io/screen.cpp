@@ -6,7 +6,7 @@
 unsigned int Screen::SCR_HEIGHT = 600;
 unsigned int Screen::SCR_WIDTH = 800;
 
-unsigned int Screen::SCR_POS_X = 300;
+unsigned int Screen::SCR_POS_X = 100;
 unsigned int Screen::SCR_POS_Y = 100;
 
 void Screen::framebufferSizeCallback(GLFWwindow* window, int width, int height) {
